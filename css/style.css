@@ -120,7 +120,72 @@ body {
     margin-right: 0 !important;
   }
 
-  /* Hide table on mobile, show cards */
+  /* Specific override for top controls to stay in one line */
+  #topControls {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+
+  #topControls .btn {
+    width: auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Admin Action Buttons: Equal width and single line on mobile */
+  #adminControls {
+    flex-direction: row !important;
+    align-items: center !important;
+    width: 100%;
+  }
+
+  #adminControls .btn {
+    flex: 1;
+    width: auto !important;
+    margin-bottom: 0 !important;
+    padding: 8px 4px !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #adminControls .btn {
+    flex: 1;
+    width: auto !important;
+    margin-bottom: 0 !important;
+    padding: 8px 4px !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Category Header Buttons: Compact and right-aligned on a new line on mobile */
+  .category-actions-container {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 5px;
+  }
+
+  .category-actions-container .btn {
+    flex: none;
+    width: auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Allow Card Header to wrap on mobile */
+  .card-body .d-flex.justify-content-between.align-items-center.mb-3 {
+    flex-wrap: wrap !important;
+  }
+
+  .card-body .d-flex.justify-content-between.align-items-center.mb-3 .card-title {
+    width: 100%;
+  }
+
   .table-responsive-cards thead {
     display: none;
   }
@@ -159,11 +224,17 @@ body {
 
   .table-responsive-cards td[data-label="Actions"] {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
+  .table-responsive-cards td[data-label="Actions"]::before {
+    width: 100%;
+  }
+
   .table-responsive-cards td[data-label="Actions"] .btn {
+    flex: 1;
     margin-bottom: 0;
   }
 
@@ -261,4 +332,92 @@ body.dark-mode .specs-cell.expanded {
 
 .table-compact td {
   padding: 0.4rem 0.5rem;
+}
+
+@media (min-width: 769px) {
+
+  .table-compact th:nth-child(2),
+  .table-compact td:nth-child(2) {
+    min-width: 151px;
+    white-space: nowrap;
+  }
+
+  .table-compact th:nth-child(4),
+  .table-compact td:nth-child(4) {
+    min-width: 120px;
+  }
+
+  .table-compact th:nth-child(5),
+  .table-compact td:nth-child(5) {
+    min-width: 150px;
+  }
+
+  .table-compact th:nth-child(6),
+  .table-compact td:nth-child(6) {
+    min-width: 140px;
+    white-space: nowrap;
+  }
+}
+
+/* Login Overlay */
+.loading-overlay,
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+body.dark-mode .loading-overlay {
+  background: rgba(44, 44, 44, 0.95);
+}
+
+.login-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.btn-logout {
+  background-color: #8b0000;
+  border-color: #8b0000;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+}
+
+.btn-logout:hover {
+  background-color: #a00000;
+  border-color: #a00000;
+  color: #fff;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .login-card {
+  background: rgba(44, 44, 44, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f0f0f0;
+}
+
+@media (max-width: 576px) {
+  .login-card {
+    padding: 1.5rem;
+  }
 }
