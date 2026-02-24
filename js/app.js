@@ -69,6 +69,7 @@ $(document).ready(function () {
     const categoriesDiv = $('#categories');
     const searchInput = $('#searchInput');
     let data = {};
+    let expandedCategories = new Set();
 
     // -------------------- Utility Functions --------------------
     const saveToFirebase = () => firebaseOps.writeData("products", data);
@@ -87,7 +88,15 @@ $(document).ready(function () {
         return false;
     };
 
-    const resetQuill = () => quill.setContents([]);
+    const resetQuill = () => {
+        try {
+            // Using silent to prevent triggering observers during hidden state
+            quill.setContents([], 'silent');
+        } catch (e) {
+            // Fallback for extreme cases
+            quill.root.innerHTML = '';
+        }
+    };
 
     // -------------------- Dark Mode --------------------
     const themeToggle = $('#themeToggle');
@@ -113,6 +122,34 @@ $(document).ready(function () {
         }
     });
 
+    // -------------------- Category Collapsing --------------------
+    function expandAllCategories() {
+        Object.keys(data).forEach(cat => expandedCategories.add(cat));
+        render();
+    }
+
+    function collapseAllCategories() {
+        expandedCategories.clear();
+        render();
+    }
+
+    searchInput.on('input', function () {
+        const term = $(this).val().toLowerCase();
+        // Expand matching categories during search
+        if (term) {
+            for (let category in data) {
+                const hasMatch = data[category].some(p =>
+                    p.name.toLowerCase().includes(term)
+                );
+                if (hasMatch) expandedCategories.add(category);
+            }
+        }
+        render(term);
+    });
+
+    $('#expandAllBtn').on('click', expandAllCategories);
+    $('#collapseAllBtn').on('click', collapseAllCategories);
+
     // -------------------- Rendering --------------------
     function render() {
         categoriesDiv.empty();
@@ -121,8 +158,7 @@ $(document).ready(function () {
         for (let category in data) {
             // Filter products
             const products = data[category].filter(p =>
-                p.name.toLowerCase().includes(searchTerm) ||
-                (p.coupon && p.coupon.toLowerCase().includes(searchTerm))
+                p.name.toLowerCase().includes(searchTerm)
             );
 
             if (products.length === 0 && searchTerm) continue; // Skip empty categories during search
@@ -131,8 +167,18 @@ $(document).ready(function () {
             const catBody = $('<div>').addClass('card-body');
 
             // Header
-            const header = $('<div>').addClass('d-flex justify-content-between align-items-center mb-3');
-            header.append(`<h4 class="card-title mb-0">${category}</h4>`);
+            const header = $('<div>').addClass('category-header d-flex justify-content-between align-items-center mb-0');
+            const titleContainer = $('<div>').addClass('d-flex align-items-center gap-2');
+            const isExpanded = expandedCategories.has(category);
+
+            const chevron = $(`
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="chevron-icon ${!isExpanded ? 'collapsed' : ''}" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                </svg>
+            `);
+            titleContainer.append(chevron, `<h4 class="card-title mb-0">${category}</h4>`);
+            header.append(titleContainer);
+
             const catActions = $('<div>').addClass('category-actions-container d-flex gap-2');
 
             const renameBtn = $('<button>')
@@ -143,7 +189,7 @@ $(document).ready(function () {
                       <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                     </svg>
                 `)
-                .click(() => renameCategory(category));
+                .click((e) => { e.stopPropagation(); renameCategory(category); });
 
             const deleteBtn = $('<button>')
                 .addClass('btn btn-sm btn-danger d-flex align-items-center justify-content-center p-2')
@@ -154,11 +200,26 @@ $(document).ready(function () {
                       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                     </svg>
                 `)
-                .click(() => deleteCategory(category));
+                .click((e) => { e.stopPropagation(); deleteCategory(category); });
 
             catActions.append(renameBtn, deleteBtn);
             header.append(catActions);
             catBody.append(header);
+
+            // Collapsible Content
+            const content = $('<div>').addClass('collapsible-content mt-3');
+            if (!isExpanded) content.hide();
+
+            header.on('click', function (e) {
+                if ($(e.target).closest('.category-actions-container').length) return;
+                content.slideToggle(300);
+                chevron.toggleClass('collapsed');
+                if (expandedCategories.has(category)) {
+                    expandedCategories.delete(category);
+                } else {
+                    expandedCategories.add(category);
+                }
+            });
 
             // Table
             const table = $('<table>').addClass('table table-striped table-hover table-compact table-responsive-cards');
@@ -185,27 +246,30 @@ $(document).ready(function () {
                     ? product.links.map(l => `<a href="${l.url}" target="_blank">${l.store}</a>`).join(', ')
                     : 'No links available';
 
-                // Discount Calculation
-                let priceDisplay = `${product.currency || ''} ${product.price || ''}`;
-                if (product.mrp && product.price && parseFloat(product.mrp) > parseFloat(product.price)) {
-                    const discount = Math.round(((product.mrp - product.price) / product.mrp) * 100);
-                    priceDisplay += ` <small class="text-success">(${discount}% off)</small>`;
-                    priceDisplay += `<br><small class="text-muted text-decoration-line-through">${product.currency} ${product.mrp}</small>`;
-                }
-
                 // Stock Status
                 const stockStatus = product.inStock === false
                     ? '<span class="badge bg-danger">Out of Stock</span>'
                     : '<span class="badge bg-success">In Stock</span>';
 
-                // Coupon
-                const couponDisplay = product.coupon ? `<br><span class="badge bg-info text-dark">Code: ${product.coupon}</span>` : '';
+                // Build image cell: thumbnail for url: entries, icon for Firebase keys
+                let imageHtml = '<span class="text-muted small">—</span>';
+                if (Array.isArray(product.image) && product.image.length > 0) {
+                    const urlImages = product.image.filter(isUrlImage);
+                    const fbImages = product.image.filter(id => !isUrlImage(id));
+                    if (urlImages.length > 0) {
+                        imageHtml = urlImages.map(id =>
+                            `<img src="${getUrl(id)}" style="max-height:48px; max-width:64px; object-fit:contain; border-radius:3px;" alt="img">`
+                        ).join('');
+                    } else if (fbImages.length > 0) {
+                        imageHtml = `<span class="text-muted small">📷 ${fbImages.length} file(s)</span>`;
+                    }
+                }
 
                 const row = $('<tr>').append(`
-                    <td data-label="Name">${product.name} ${stockStatus} ${couponDisplay}</td>
-                    <td data-label="Price">${priceDisplay}</td>
+                    <td data-label="Name">${product.name} ${stockStatus}</td>
+                    <td data-label="Price">${product.currency || ''} ${product.price || ''}</td>
                     <td data-label="Specs"><div class="specs-cell">${product.specs}</div></td>
-                    <td data-label="Image">${product.image}</td>
+                    <td data-label="Image">${imageHtml}</td>
                     <td data-label="Links">${linksHtml}</td>
                     <td data-label="Actions">
                         <button class="btn btn-sm btn-primary me-2">Edit</button>
@@ -216,16 +280,20 @@ $(document).ready(function () {
                 row.find('.btn-primary').click(() => editProduct(category, originalIndex));
                 row.find('.btn-danger').click(() => deleteProduct(category, originalIndex));
                 row.find('.specs-cell').click(function (e) {
-                    if (window.innerWidth <= 768) {
-                        $(this).toggleClass('expanded');
-                    }
+                    $(this).toggleClass('expanded');
                 });
                 tbody.append(row);
             });
 
             table.append(tbody);
-            const addBtn = $('<button>').addClass('btn btn-success mt-2').text('Add Product').click(() => addProduct(category));
-            catBody.append(table, addBtn);
+            const btnGroup = $('<div>').addClass('d-flex gap-2 mt-2');
+            const addBtn = $('<button>').addClass('btn btn-success').text('Add Product').click(() => addProduct(category));
+            const fromLinkBtn = $('<button>').addClass('btn btn-info text-white')
+                .html(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="me-1" viewBox="0 0 16 16"><path d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9c-.086 0-.17.01-.25.031A2 2 0 0 1 7 10.5H4a2 2 0 1 1 0-4h1.535c.218-.376.495-.714.82-1z"/><path d="M9 5.5a3 3 0 0 0-2.83 4h1.098A2 2 0 0 1 9 6.5h3a2 2 0 1 1 0 4h-1.535a4.02 4.02 0 0 1-.82 1H12a3 3 0 1 0 0-6H9z"/></svg> Add from Link`)
+                .click(() => addProductFromLink(category));
+            btnGroup.append(addBtn, fromLinkBtn);
+            content.append(table, btnGroup);
+            catBody.append(content);
             catCard.append(catBody);
             categoriesDiv.append(catCard);
         }
@@ -237,6 +305,18 @@ $(document).ready(function () {
     let isEdit = false;
     const productModal = new bootstrap.Modal(document.getElementById('productModal'));
 
+    // Helper: check if an image array entry is a direct URL vs a Firebase key
+    const isUrlImage = (id) => typeof id === 'string' && id.startsWith('url:');
+    const getUrl = (id) => id.slice(4); // strip 'url:' prefix
+
+    function showImportedImagePreview(url) {
+        $('#prodImageUrl').val(url);
+    }
+
+    function clearImportedImagePreview() {
+        $('#prodImageUrl').val('');
+    }
+
     function openProductModal(category, index = null) {
         currentCategory = category;
         currentIndex = index;
@@ -245,7 +325,7 @@ $(document).ready(function () {
 
         $('#productForm')[0].reset();
         $('#linksContainer').empty();
-        $('#imagePreviewContainer').empty();
+        clearImportedImagePreview();
         resetQuill();
 
         if (isEdit) {
@@ -253,28 +333,30 @@ $(document).ready(function () {
             $('#prodName').val(product.name);
             $('#prodPrice').val(product.price);
             $('#prodCurrency').val(product.currency);
-            $('#prodMRP').val(product.mrp || '');
-            $('#prodCoupon').val(product.coupon || '');
-            $('#prodInStock').prop('checked', product.inStock !== false); // Default to true if undefined
-            quill.root.innerHTML = product.specs || "";
+            $('#prodInStock').prop('checked', product.inStock !== false);
+            // Use standard Quill API instead of innerHTML for better stability
+            quill.clipboard.dangerouslyPasteHTML(product.specs || '');
 
             if (Array.isArray(product.image)) {
                 product.image.forEach(id => {
-                    firebaseOps.readBase64Image(id, function (base64String) {
-                        $('#imagePreviewContainer').append(
-                            `<img src="${base64String}" class="img-thumbnail me-2" style="max-width:100px;">`
-                        );
-                    });
+                    if (isUrlImage(id)) {
+                        $('#prodImageUrl').val(getUrl(id));
+                    }
                 });
             }
 
             if (Array.isArray(product.links)) {
                 product.links.forEach(l => addLinkField(l.store, l.url));
             }
+        } else {
+            addLinkField(); // Default Amazon link field
         }
 
         productModal.show();
     }
+
+    // Remove imported image button
+    $('#removeImportedImageBtn').on('click', clearImportedImagePreview);
 
     function addLinkField(store = "Amazon", url = "") {
         const row = $('<div>').addClass('input-group mb-2');
@@ -295,53 +377,14 @@ $(document).ready(function () {
 
     $('#addLinkBtn').on('click', () => addLinkField());
 
-    // -------------------- Image Compression --------------------
-    function compressImage(file, maxSizeKB = 128, callback) {
-        const reader = new FileReader();
-        reader.onload = function (event) {
-            const img = new Image();
-            img.onload = function () {
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
-
-                let width = img.width;
-                let height = img.height;
-
-                const scaleFactor = Math.sqrt((maxSizeKB * 1024) / file.size);
-                if (scaleFactor < 1) {
-                    width = Math.floor(width * scaleFactor);
-                    height = Math.floor(height * scaleFactor);
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img, 0, 0, width, height);
-
-                let quality = 0.9;
-                let base64String;
-                do {
-                    base64String = canvas.toDataURL("image/jpeg", quality);
-                    quality -= 0.1;
-                } while (base64String.length / 1024 > maxSizeKB && quality > 0.1);
-
-                callback(base64String);
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
     // -------------------- Product Form Submit --------------------
     $('#productForm').on('submit', function (e) {
         e.preventDefault();
         const name = $('#prodName').val();
         const price = $('#prodPrice').val();
         const currency = $('#prodCurrency').val();
-        const mrp = $('#prodMRP').val();
-        const coupon = $('#prodCoupon').val();
         const inStock = $('#prodInStock').is(':checked');
         const specs = quill.root.innerHTML;
-        const files = $('#prodImage')[0].files;
 
         const links = [];
         $('#linksContainer .input-group').each(function () {
@@ -350,36 +393,21 @@ $(document).ready(function () {
             if (store && url) links.push({ store, url });
         });
 
-        const productData = { name, price, currency, mrp, coupon, inStock, specs, links, image: [] };
+        const imageUrl = $('#prodImageUrl').val().trim();
+        const productData = { name, price, currency, inStock, specs, links, image: [] };
 
-        const saveProduct = () => {
-            if (isEdit) {
-                data[currentCategory][currentIndex] = productData;
-            } else {
-                data[currentCategory].push(productData);
-            }
-            saveLocal();
-            productModal.hide();
-            render();
-        };
-
-        if (files.length > 0) {
-            const promises = Array.from(files).map((file, index) => {
-                return new Promise((resolve) => {
-                    compressImage(file, 1024, function (base64String) {
-                        const imageId = Date.now() + "_" + index;
-                        firebaseOps.saveBase64Image(imageId, base64String, () => {
-                            productData.image.push(imageId);
-                            resolve();
-                        });
-                    });
-                });
-            });
-
-            Promise.all(promises).then(saveProduct);
-        } else {
-            saveProduct();
+        if (imageUrl) {
+            productData.image.push('url:' + imageUrl);
         }
+
+        if (isEdit) {
+            data[currentCategory][currentIndex] = productData;
+        } else {
+            data[currentCategory].push(productData);
+        }
+        saveLocal();
+        productModal.hide();
+        render();
     });
 
     // -------------------- Product Actions --------------------
@@ -450,7 +478,7 @@ $(document).ready(function () {
     });
 
     function deleteCategory(category) {
-        if (confirm(`Delete category "${category}" and all its products?`)) {
+        if (confirm(`Delete category "${category}" and all its products ? `)) {
             delete data[category];
             saveLocal();
             render();
@@ -518,4 +546,530 @@ $(document).ready(function () {
     // -------------------- Search Event --------------------
     searchInput.on('input', render);
 
+    // -------------------- Import from Link --------------------
+    const importLinkModal = new bootstrap.Modal(document.getElementById('importLinkModal'));
+    let importLinkCategory = null;
+    let lastScrapedData = null;
+
+    function addProductFromLink(category) {
+        importLinkCategory = category;
+        lastScrapedData = null;
+        // Reset modal state
+        $('#importLinkUrl').val('');
+        $('#importLinkStatus').addClass('d-none').text('');
+        $('#importPreview').addClass('d-none');
+        $('#importFillFormBtn').addClass('d-none');
+        setFetchBtnLoading(false);
+        importLinkModal.show();
+    }
+
+    function setFetchBtnLoading(loading) {
+        if (loading) {
+            $('#fetchBtnText').text('Fetching...');
+            $('#fetchBtnSpinner').removeClass('d-none');
+            $('#fetchDetailsBtn').prop('disabled', true);
+        } else {
+            $('#fetchBtnText').text('Fetch Details');
+            $('#fetchBtnSpinner').addClass('d-none');
+            $('#fetchDetailsBtn').prop('disabled', false);
+        }
+    }
+
+    function showImportStatus(type, msg) {
+        // type: 'success' | 'warning' | 'danger'
+        const el = $('#importLinkStatus');
+        el.removeClass('d-none alert alert-success alert-warning alert-danger')
+            .addClass(`alert alert-${type}`)
+            .html(msg);
+    }
+
+    // -------------------- Product Fetch via Microlink API + CORS Proxy fallback --------------------
+
+    function detectPlatform(url) {
+        const hostname = new URL(url).hostname.toLowerCase();
+        if (hostname.includes('amazon') || hostname === 'amzn.to' || hostname === 'a.co' || hostname.includes('amzn.')) {
+            return 'Amazon';
+        } else if (hostname.includes('flipkart')) {
+            return 'Flipkart';
+        }
+        return null;
+    }
+
+    // Extract ASIN from Amazon URL
+    function extractAsin(url) {
+        const m = url.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
+        return m ? m[1] : null;
+    }
+
+    // Primary method: microlink.io API — runs a headless browser, returns structured data
+    async function fetchViaMicrolink(url) {
+        // Amazon selectors
+        const amzPriceSelector = '.a-price-whole, .a-price .a-offscreen, #priceblock_ourprice';
+        const amzSpecsSelector = '#feature-bullets ul';
+
+        // Flipkart selectors
+        const fkPriceSelector = '._30jeq3, .Nx9bqj, ._16Jk6d';
+        const fkSpecsSelector = '._2418kt, ._1mXcCf';
+
+        // Detect platform roughly to pick selectors
+        const hostname = new URL(url).hostname.toLowerCase();
+        let selectors = '';
+        if (hostname.includes('amazon') || hostname.includes('amzn.')) {
+            selectors = `&data.price.selector=${encodeURIComponent(amzPriceSelector)}&data.specs.selector=${encodeURIComponent(amzSpecsSelector)}`;
+        } else if (hostname.includes('flipkart')) {
+            selectors = `&data.price.selector=${encodeURIComponent(fkPriceSelector)}&data.specs.selector=${encodeURIComponent(fkSpecsSelector)}`;
+        }
+
+        const apiUrl = `https://api.microlink.io?url=${encodeURIComponent(url)}${selectors}`;
+        const r = await fetch(apiUrl, { signal: AbortSignal.timeout(20000) });
+        if (!r.ok) throw new Error(`Microlink API returned ${r.status}`);
+        const json = await r.json();
+        if (json.status !== 'success' || !json.data) {
+            throw new Error('Microlink returned no data');
+        }
+        return json.data;
+    }
+
+    // Build a better product image URL for Amazon using the ASIN
+    function buildAmazonImageUrl(asin) {
+        // Amazon's standard product image URL pattern (large size)
+        return `https://m.media-amazon.com/images/P/${asin}.jpg`;
+    }
+
+    // Fallback: CORS proxy fetch for HTML scraping
+    async function fetchViaProxy(url) {
+        const proxies = [
+            async (u) => {
+                const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(12000) });
+                if (!r.ok) throw new Error(`corsproxy ${r.status}`);
+                return await r.text();
+            },
+            async (u) => {
+                const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(12000) });
+                if (!r.ok) throw new Error(`allorigins ${r.status}`);
+                const j = await r.json();
+                return j.contents || null;
+            }
+        ];
+
+        for (const proxy of proxies) {
+            try {
+                const html = await proxy(url);
+                if (html && html.length > 500) return html;
+            } catch (e) {
+                console.warn('Proxy failed:', e.message);
+            }
+        }
+        return null;
+    }
+
+    async function fetchProductFromLink(url) {
+        const platform = detectPlatform(url);
+        if (!platform) {
+            throw new Error('Unsupported platform. Only Amazon and Flipkart links are supported.');
+        }
+
+        // ===== METHOD 1: Microlink API (works with short links, handles redirects + JS) =====
+        let microlinkData = null;
+        try {
+            console.log('Fetching via Microlink API...');
+            microlinkData = await fetchViaMicrolink(url);
+            console.log('Microlink data:', microlinkData);
+        } catch (e) {
+            console.warn('Microlink fetch failed:', e.message);
+        }
+
+        if (microlinkData) {
+            const resolvedUrl = microlinkData.url || url;
+            const resolvedPlatform = detectPlatform(resolvedUrl) || platform;
+
+            // Build result from microlink data
+            let name = cleanTitle(microlinkData.title || '');
+            let specs = microlinkData.specs || microlinkData.description || '';
+            let price = microlinkData.price || '';
+            let imageUrl = '';
+
+            // Image: microlink sometimes returns the site logo instead of product image
+            const mlImage = microlinkData.image;
+            if (mlImage && mlImage.url) {
+                const imgUrl = mlImage.url;
+                const isLikelyLogo = imgUrl.includes('favicon') || imgUrl.includes('logo') ||
+                    imgUrl.includes('Prime_Logo') || imgUrl.includes('brand') ||
+                    (mlImage.height && mlImage.width && mlImage.height < 200 && mlImage.width < 200);
+                if (!isLikelyLogo) {
+                    imageUrl = imgUrl;
+                }
+            }
+
+            // For Amazon: try to build a direct product image URL using the ASIN
+            if (resolvedPlatform === 'Amazon' && !imageUrl) {
+                const asin = extractAsin(resolvedUrl);
+                if (asin) {
+                    imageUrl = buildAmazonImageUrl(asin);
+                }
+            }
+
+            // ===== METHOD 2: Try CORS proxy to get price & better data from HTML =====
+            try {
+                console.log('Trying CORS proxy for additional data (price, specs)...');
+                const html = await fetchViaProxy(resolvedUrl);
+                if (html) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // Parse structured data from HTML (JSON-LD, OG tags)
+                    const structured = parseStructuredData(doc);
+
+                    // Try to get price from structured data
+                    price = structured.price || '';
+                    // Use better name/image from structured data if available
+                    if (!name && structured.name) name = structured.name;
+                    if (!imageUrl && structured.imageUrl) imageUrl = structured.imageUrl;
+                    if (!specs && structured.specs) specs = structured.specs;
+
+                    // Also try DOM selectors for price (they sometimes work even with partial HTML)
+                    if (resolvedPlatform === 'Amazon') {
+                        const domData = parseAmazon(doc, resolvedUrl);
+                        price = price || domData.price;
+                        if (!imageUrl && domData.imageUrl) imageUrl = domData.imageUrl;
+                        if (!name && domData.name) name = domData.name;
+                        if (!specs && domData.specs) specs = domData.specs;
+                    } else {
+                        const domData = parseFlipkart(doc, resolvedUrl);
+                        price = price || domData.price;
+                        if (!imageUrl && domData.imageUrl) imageUrl = domData.imageUrl;
+                        if (!name && domData.name) name = domData.name;
+                        if (!specs && domData.specs) specs = domData.specs;
+                    }
+                }
+            } catch (e) {
+                console.warn('CORS proxy enrichment failed (non-critical):', e.message);
+            }
+
+            return {
+                platform: resolvedPlatform,
+                name: name || 'Unknown Product',
+                price: cleanPrice(price),
+                imageUrl,
+                specs,
+                currency: '₹',
+                url: resolvedUrl
+            };
+        }
+
+        // ===== FALLBACK: Pure CORS proxy scraping (if microlink is down) =====
+        console.log('Microlink unavailable, falling back to CORS proxy...');
+        const html = await fetchViaProxy(url);
+        if (!html) {
+            throw new Error('Could not fetch product page. Both Microlink API and CORS proxies failed. Please add the product manually.');
+        }
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Parse structured data first, then DOM
+        const structured = parseStructuredData(doc);
+        let result;
+        if (platform === 'Amazon') {
+            result = parseAmazon(doc, url);
+        } else {
+            result = parseFlipkart(doc, url);
+        }
+
+        // Merge structured data as fallback
+        result.name = result.name || structured.name || 'Unknown Product';
+        result.imageUrl = result.imageUrl || structured.imageUrl || '';
+        result.specs = result.specs || structured.specs || '';
+        result.price = result.price || structured.price || '';
+        result.platform = platform;
+        result.url = url; // Keep original URL in fallback
+
+        return result;
+    }
+
+    function cleanPrice(raw) {
+        if (!raw) return '';
+        return raw.replace(/[^0-9.]/g, '').trim();
+    }
+
+    // Clean up title strings — remove platform suffixes and prefixes
+    function cleanTitle(raw) {
+        if (!raw) return '';
+        return raw
+            .replace(/^(Amazon\.in|Amazon\.com|Flipkart\.com|Flipkart):\s*/i, '')
+            .replace(/[\|\-–—]\s*(Amazon\.in|Amazon\.com|Flipkart\.com|Flipkart).*$/i, '')
+            .replace(/:\s*(Amazon\.in|Amazon\.com|Flipkart\.com|Flipkart).*$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    // Parse JSON-LD and OpenGraph meta tags \u2014 always rendered server-side (no JS needed)
+    function parseStructuredData(doc) {
+        const result = { name: '', price: '', imageUrl: '', specs: '' };
+
+        // --- JSON-LD (richest source: full schema.org Product object) ---
+        const jsonLdScripts = doc.querySelectorAll('script[type="application/ld+json"]');
+        for (const script of jsonLdScripts) {
+            try {
+                let data = JSON.parse(script.textContent || script.innerHTML);
+                if (!Array.isArray(data)) data = [data];
+                for (const item of data) {
+                    // Navigate @graph if present
+                    const nodes = item['@graph'] ? item['@graph'] : [item];
+                    for (const node of nodes) {
+                        if (node['@type'] === 'Product' || String(node['@type']).toLowerCase().includes('product')) {
+                            result.name = result.name || cleanTitle(node.name || '');
+                            // Image: can be a string, array, or ImageObject
+                            if (!result.imageUrl) {
+                                const img = node.image;
+                                if (typeof img === 'string') result.imageUrl = img;
+                                else if (Array.isArray(img)) result.imageUrl = typeof img[0] === 'string' ? img[0] : (img[0] && img[0].url) || '';
+                                else if (img && img.url) result.imageUrl = img.url;
+                            }
+                            result.specs = result.specs || node.description || '';
+                            // Offers
+                            const offers = node.offers;
+                            if (offers && !result.price) {
+                                const offerObj = Array.isArray(offers) ? offers[0] : offers;
+                                result.price = result.price || String(offerObj.price || offerObj.lowPrice || '');
+                            }
+                        }
+                    }
+                }
+            } catch (e) { /* skip invalid JSON */ }
+        }
+
+        // --- OpenGraph / Twitter Card meta tags ---
+        const getMeta = (...selectors) => {
+            for (const sel of selectors) {
+                const el = doc.querySelector(sel);
+                if (el) {
+                    const v = el.getAttribute('content') || '';
+                    if (v) return v;
+                }
+            }
+            return '';
+        };
+
+        result.name = result.name ||
+            cleanTitle(getMeta('meta[property="og:title"]', 'meta[name="twitter:title"]', 'meta[name="title"]')) ||
+            cleanTitle(doc.querySelector('title')?.textContent || '');
+
+        result.imageUrl = result.imageUrl ||
+            getMeta('meta[property="og:image"]', 'meta[property="og:image:url"]', 'meta[name="twitter:image"]');
+
+        result.specs = result.specs ||
+            getMeta('meta[property="og:description"]', 'meta[name="description"]', 'meta[name="twitter:description"]');
+
+        return result;
+    }
+
+    function parseAmazon(doc, url) {
+        const getText = (sel) => {
+            const el = doc.querySelector(sel);
+            return el ? (el.innerText || el.textContent || '').trim() : '';
+        };
+        const getAttr = (sel, attr) => {
+            const el = doc.querySelector(sel);
+            return el ? el.getAttribute(attr) || '' : '';
+        };
+
+        // Tier 1: JSON-LD + meta tags (always present in server HTML)
+        const structured = parseStructuredData(doc);
+
+        // Tier 2: Amazon-specific DOM selectors (present when JS has rendered, or in cached pages)
+        const domName = getText('#productTitle') || getText('h1.a-size-large') || '';
+        const priceWhole = getText('.a-price-whole').replace(/[^0-9]/g, '');
+        const priceFraction = getText('.a-price-fraction').replace(/[^0-9]/g, '') || '00';
+        const domPrice = priceWhole
+            ? `${priceWhole}.${priceFraction}`
+            : cleanPrice(getText('#priceblock_ourprice') || getText('#priceblock_dealprice') || getText('.a-price .a-offscreen'));
+        let domImage = getAttr('#landingImage', 'data-old-hires') ||
+            getAttr('#landingImage', 'src') ||
+            getAttr('#imgBlkFront', 'src') ||
+            getAttr('#main-image', 'src');
+
+        // Tier 3: extract image URL from Amazon's JS data blob embedded in the page
+        if (!domImage) {
+            const imgScript = Array.from(doc.querySelectorAll('script')).find(s => s.textContent.includes('"hiRes"'));
+            if (imgScript) {
+                const match = imgScript.textContent.match(/"hiRes"\s*:\s*"([^"]+)"/);
+                if (match) domImage = match[1];
+            }
+        }
+
+        // Bullet specs
+        const bulletItems = doc.querySelectorAll('#feature-bullets li span.a-list-item');
+        let domSpecs = '';
+        if (bulletItems.length > 0) {
+            domSpecs = '<ul>' + Array.from(bulletItems)
+                .map(li => `<li>${li.textContent.trim()}</li>`)
+                .join('') + '</ul>';
+        } else {
+            domSpecs = getText('#productDescription') || '';
+        }
+
+        const name = domName || structured.name;
+        const price = domPrice || structured.price;
+        const imageUrl = domImage || structured.imageUrl;
+        const specs = domSpecs || structured.specs;
+
+        return { name: cleanTitle(name), price: cleanPrice(price), imageUrl, specs, currency: '₹', url };
+    }
+
+    function parseFlipkart(doc, url) {
+        const getText = (sel) => {
+            const el = doc.querySelector(sel);
+            return el ? (el.innerText || el.textContent || '').trim() : '';
+        };
+        const getAttr = (sel, attr) => {
+            const el = doc.querySelector(sel);
+            return el ? el.getAttribute(attr) || '' : '';
+        };
+
+        // Tier 1: JSON-LD + meta tags
+        const structured = parseStructuredData(doc);
+
+        // Tier 2: Flipkart DOM selectors
+        const domName = getText('.B_NuCI') || getText('h1.yhB1nd') || getText('.G6XhRU') ||
+            getText('h1[class*="title"]') || getText('h1') || '';
+        const domPrice = cleanPrice(getText('._30jeq3') || getText('._1_WHN1') || getText('.Nx9bqj') ||
+            getText('div[class*="price"]') || '');
+        const domImage = getAttr('._396cs4', 'src') || getAttr('img._2r_T1I', 'src') ||
+            getAttr('._2amPTt img', 'src') || getAttr('img.q6DClP', 'src') ||
+            getAttr('img[class*="product"]', 'src') || '';
+
+        const highlightItems = doc.querySelectorAll('._1mXcCf li, .RmoJbe li, ._3Rm6K3 li');
+        let domSpecs = '';
+        if (highlightItems.length > 0) {
+            domSpecs = '<ul>' + Array.from(highlightItems)
+                .map(li => `<li>${li.textContent.trim()}</li>`)
+                .join('') + '</ul>';
+        } else {
+            domSpecs = getText('._1AN87F') || getText('.X3BRps') || '';
+        }
+
+        const name = domName || structured.name;
+        const price = domPrice || structured.price;
+        const imageUrl = domImage || structured.imageUrl;
+        const specs = domSpecs || structured.specs;
+
+        return { name: cleanTitle(name), price: cleanPrice(price), imageUrl, specs, currency: '₹', url };
+    }
+
+    $('#fetchDetailsBtn').on('click', async function () {
+        const url = $('#importLinkUrl').val().trim();
+        if (!url) {
+            showImportStatus('warning', 'Please enter a product URL.');
+            return;
+        }
+        let urlObj;
+        try {
+            urlObj = new URL(url);
+        } catch (e) {
+            showImportStatus('danger', 'Invalid URL. Please enter a full product URL including https://');
+            return;
+        }
+
+        setFetchBtnLoading(true);
+        $('#importFillFormBtn').addClass('d-none');
+        $('#importLinkStatus').addClass('d-none');
+
+        try {
+            const result = await fetchProductFromLink(url);
+            // Ensure the URL matches exactly what the user input initially
+            result.url = url;
+            lastScrapedData = result;
+
+            // If success, open the product form directly
+            $('#importFillFormBtn').trigger('click');
+        } catch (err) {
+            console.error('Import from link error:', err);
+            const isCaptcha = err.message.toLowerCase().includes('captcha') || err.message.toLowerCase().includes('robot');
+            const isShortLink = $('#importLinkUrl').val().includes('amzn.to') || $('#importLinkUrl').val().includes('a.co');
+
+            let hint = '';
+            if (isCaptcha || isShortLink) {
+                hint = `<div class="mt-2 small">
+                    <strong>💡 Tips to fix this:</strong>
+                    <ul class="mb-1 mt-1">
+                        <li>Avoid short links (amzn.to). Open the product page on Amazon, copy the full URL from the address bar, and paste it here.</li>
+                        <li>Amazon actively blocks automated access — if it still fails, add the product manually using the button below.</li>
+                    </ul>
+                </div>`;
+            } else {
+                hint = `<div class="mt-1 small text-muted">The site may be blocking automated access. Try a different URL or add details manually.</div>`;
+            }
+
+            showImportStatus('danger',
+                `❌ <strong>Could not fetch product details.</strong><br><small>${err.message}</small>${hint}`
+            );
+            // Show the "open empty form" button so user isn't stuck
+            $('#importFillFormBtn').removeClass('d-none').text('Open Empty Form');
+        } finally {
+            setFetchBtnLoading(false);
+        }
+    });
+
+    // Also allow pressing Enter in the URL input
+    $('#importLinkUrl').on('keydown', function (e) {
+        if (e.key === 'Enter') $('#fetchDetailsBtn').trigger('click');
+    });
+
+    $('#importFillFormBtn').on('click', function () {
+        if (!importLinkCategory) return;
+
+        // Hide import modal, then open product modal
+        importLinkModal.hide();
+
+        setTimeout(() => {
+            openProductModal(importLinkCategory);
+
+            if (!lastScrapedData) {
+                $('#importFillFormBtn').text('Open in Product Form'); // Reset text for next time
+                return;
+            }
+
+            const d = lastScrapedData;
+
+            // Pre-fill product form fields
+            $('#prodName').val(d.name || '');
+            $('#prodPrice').val(d.price || '');
+            $('#prodCurrency').val(d.currency || '₹');
+
+            // Pre-fill specs in Quill editor
+            if (d.specs) {
+                let specsHtml = d.specs;
+                // Clean common Amazon noise from specs
+                specsHtml = specsHtml
+                    .replace(/About this item/i, '')
+                    .replace(/See more product details/i, '')
+                    .replace(/Report an issue with this product/i, '')
+                    .replace(/›/g, '')
+                    .trim();
+
+                // If text contains bullets like "-" or "•" but no HTML tags, convert to list
+                if (!specsHtml.includes('<') && (specsHtml.includes('\n') || specsHtml.includes('•') || specsHtml.includes('- '))) {
+                    const lines = specsHtml.split(/\n|•|(?:\s-\s)/).map(l => l.trim()).filter(l => l.length > 0);
+                    specsHtml = '<ul>' + lines.map(line => `<li>${line}</li>`).join('') + '</ul>';
+                } else if (!specsHtml.includes('<ul') && !specsHtml.includes('<li') && specsHtml.includes('\n')) {
+                    specsHtml = '<ul>' + specsHtml.split('\n').map(line => `<li>${line.trim()}</li>`).join('') + '</ul>';
+                }
+
+                // Final sanitize: if it's just raw text now, wrap in a simple tag or leave as is
+                quill.root.innerHTML = specsHtml;
+            }
+
+            // Pre-fill link
+            $('#linksContainer').empty();
+            addLinkField(d.platform, d.url);
+
+            // Pre-fill imported image URL if available
+            if (d.imageUrl) {
+                showImportedImagePreview(d.imageUrl);
+            }
+
+            $('#importFillFormBtn').text('Open in Product Form'); // Reset text
+        }, 450);
+    });
 });

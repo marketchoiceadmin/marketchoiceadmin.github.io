@@ -283,25 +283,6 @@ body.dark-mode .specs-cell::after {
   background: linear-gradient(to bottom, transparent, #3a3a3a);
 }
 
-.specs-cell:hover {
-  display: block;
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
-  -webkit-box-orient: unset;
-  overflow: visible;
-  z-index: 10;
-  background-color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 10px;
-  border-radius: 4px;
-}
-
-body.dark-mode .specs-cell:hover {
-  background-color: #404040;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.specs-cell:hover::after,
 .specs-cell.expanded::after {
   opacity: 0;
 }

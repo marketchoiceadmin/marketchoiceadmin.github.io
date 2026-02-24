@@ -76,6 +76,39 @@
       filter: invert(1) grayscale(100%) brightness(200%);
     }
 
+    /* Category Collapsing */
+    .card-title {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .category-header {
+      cursor: pointer;
+      padding: 0.75rem 1.25rem;
+      transition: background-color 0.2s;
+    }
+
+    .category-header:hover {
+      background-color: rgba(0, 0, 0, 0.03);
+    }
+
+    body.dark-mode .category-header:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .chevron-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .chevron-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+      transition: max-height 0.3s ease-out, opacity 0.3s ease;
+      overflow: hidden;
+    }
+
     /* Titles & Labels */
     body.dark-mode h1,
     body.dark-mode h2,
@@ -185,6 +218,10 @@
               <input type="text" id="searchInput" class="form-control" placeholder="Search products...">
             </div>
           </div>
+          <div class="col-12 col-md-6 px-3 mt-2 mt-md-0 d-flex justify-content-md-end gap-2">
+            <button id="expandAllBtn" class="btn btn-sm btn-outline-secondary">Expand All</button>
+            <button id="collapseAllBtn" class="btn btn-sm btn-outline-secondary">Collapse All</button>
+          </div>
         </div>
         <div id="categories"></div>
       </div>
@@ -199,6 +236,65 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Import from Link Modal -->
+  <div class="modal fade" id="importLinkModal" tabindex="-1" aria-labelledby="importLinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="importLinkModalLabel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2 mb-1"
+              viewBox="0 0 16 16">
+              <path
+                d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9c-.086 0-.17.01-.25.031A2 2 0 0 1 7 10.5H4a2 2 0 1 1 0-4h1.535c.218-.376.495-.714.82-1z" />
+              <path
+                d="M9 5.5a3 3 0 0 0-2.83 4h1.098A2 2 0 0 1 9 6.5h3a2 2 0 1 1 0 4h-1.535a4.02 4.02 0 0 1-.82 1H12a3 3 0 1 0 0-6H9z" />
+            </svg>
+            Add Product from Link
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- URL Input -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Product URL</label>
+            <p class="text-muted small mb-2">Paste a product link from Amazon or Flipkart. We'll try to extract the
+              details automatically.</p>
+            <div class="input-group">
+              <span class="input-group-text">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path
+                    d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z" />
+                </svg>
+              </span>
+              <input type="url" id="importLinkUrl" class="form-control form-control-lg"
+                placeholder="https://www.amazon.in/dp/... or https://www.flipkart.com/...">
+              <button id="fetchDetailsBtn" class="btn btn-primary px-4" type="button">
+                <span id="fetchBtnText">Fetch Details</span>
+                <span id="fetchBtnSpinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Status / Error Message -->
+          <div id="importLinkStatus" class="d-none"></div>
+
+
+        </div>
+        <div class="modal-footer justify-content-between" id="importModalFooter">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" id="importFillFormBtn" class="btn btn-success d-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="me-1"
+              viewBox="0 0 16 16">
+              <path
+                d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z" />
+            </svg>
+            Open in Product Form
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -238,20 +334,11 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Images</label>
-              <input type="file" id="prodImage" class="form-control" accept="image/*" multiple>
+              <label class="form-label">Image URL</label>
+              <input type="text" id="prodImageUrl" class="form-control" placeholder="https://example.com/image.jpg">
+              <div class="small text-muted mt-1">Paste an image URL or let it be filled automatically from links.</div>
             </div>
 
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label class="form-label">MRP (for discount calc)</label>
-                <input type="number" id="prodMRP" class="form-control" step="0.01" min="0">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Coupon Code</label>
-                <input type="text" id="prodCoupon" class="form-control">
-              </div>
-            </div>
 
             <div class="mb-3 form-check">
               <input type="checkbox" class="form-check-input" id="prodInStock" checked>
