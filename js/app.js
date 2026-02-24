@@ -20,49 +20,71 @@ $(document).ready(function () {
     const loginError = $('#loginError');
     const logoutBtn = $('#logoutBtn');
 
-    // Utility for SHA-256 hashing
-    async function hash(str) {
-        const msgUint8 = new TextEncoder().encode(str);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
     // Authentication check
-    setTimeout(() => {
-        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+    firebaseOps.onAuthStateChanged((user) => {
+        if (user) {
+            // User is signed in.
             loadingOverlay.fadeOut(300, () => {
+                loginOverlay.fadeOut(300);
                 mainContent.fadeIn();
             });
         } else {
+            // No user is signed in.
             loadingOverlay.fadeOut(300, () => {
+                mainContent.fadeOut(300);
                 loginOverlay.fadeIn();
             });
         }
-    }, 500); // Small delay for visual consistency
+    });
 
     loginForm.on('submit', async function (e) {
         e.preventDefault();
         const user = $('#username').val().trim();
         const pass = $('#password').val().trim();
 
-        const userHash = await hash(user);
-        const passHash = await hash(pass);
+        // Convert username to email if needed (Firebase requires email)
+        const email = user.includes('@') ? user : `${user}@marketchoice.com`;
 
-        if (userHash === AUTH_CONFIG.usernameHash && passHash === AUTH_CONFIG.passwordHash) {
-            sessionStorage.setItem('isLoggedIn', 'true');
-            loginOverlay.fadeOut(400, () => {
-                mainContent.fadeIn();
-            });
-        } else {
-            loginError.removeClass('d-none');
-        }
+        firebaseOps.login(email, pass).catch(error => {
+            console.error("Login failed:", error);
+            let message = "Invalid email or password.";
+
+            // Map common Firebase Auth error codes
+            switch (error.code) {
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                case 'auth/invalid-login-credentials': // Standard in newer SDKs/configs
+                    message = "Invalid email or password.";
+                    break;
+                case 'auth/invalid-email':
+                    message = "Please enter a valid email address.";
+                    break;
+                case 'auth/user-disabled':
+                    message = "This account has been disabled.";
+                    break;
+                case 'auth/too-many-requests':
+                    message = "Too many failed attempts. Please try again later.";
+                    break;
+                default:
+                    // If we have a message from the error but it's not a known code, 
+                    // try to extract something readable, otherwise stick to default.
+                    if (error.message && typeof error.message === 'string' && !error.message.startsWith('{')) {
+                        message = error.message;
+                    }
+                    break;
+            }
+
+            loginError.removeClass('d-none').text(message);
+        });
     });
 
     logoutBtn.on('click', () => {
         if (confirm("Are you sure you want to logout?")) {
-            sessionStorage.removeItem('isLoggedIn');
-            location.reload();
+            firebaseOps.logout().then(() => {
+                // onAuthStateChanged will handle the UI redirect
+            }).catch(error => {
+                console.error("Logout failed:", error.message);
+            });
         }
     });
 

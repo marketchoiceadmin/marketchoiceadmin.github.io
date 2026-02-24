@@ -17,10 +17,11 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const storage = firebase.storage();
+const auth = firebase.auth();
 
 // Function to read JSON data
 function readData(path, callback) {
-  database.ref(path).on("value", function(snapshot) {
+  database.ref(path).on("value", function (snapshot) {
     callback(snapshot.val());
   });
 }
@@ -37,7 +38,7 @@ function updateData(path, data) {
 
 // Function to save base64 image string in Realtime Database
 function saveBase64Image(id, base64String, callback) {
-  database.ref("images/" + id).set(base64String, function(error) {
+  database.ref("images/" + id).set(base64String, function (error) {
     if (error) {
       console.error("Error saving image:", error);
     } else {
@@ -53,10 +54,26 @@ function readBase64Image(id, callback) {
   });
 }
 
+// Auth Functions
+function login(email, password) {
+  return auth.signInWithEmailAndPassword(email, password);
+}
+
+function logout() {
+  return auth.signOut();
+}
+
+function onAuthStateChanged(callback) {
+  auth.onAuthStateChanged(callback);
+}
+
 window.firebaseOps = {
   readData,
   writeData,
   updateData,
   saveBase64Image,
-  readBase64Image
+  readBase64Image,
+  login,
+  logout,
+  onAuthStateChanged
 };
